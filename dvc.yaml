@@ -1,59 +1,29 @@
-stages:
-  preprocess_v0:
-    cmd: python scripts/preprocess.py --dataset iris_v0
+train_iteration_1:
+  cmd: python scripts/train.py --iteration 1
 
-    deps:
-      - scripts/preprocess.py
-      - data/raw/iris_v0.csv
+  deps:
+    - scripts/train.py
+    - scripts/utils.py
+    - params.yaml
+    - data/processed/iris_v0_processed.csv
 
-    outs:
-      - data/processed/iris_v0_processed.csv
+  outs:
+    - models/model_iteration_1.pkl
 
-  preprocess_v1:
-    cmd: python scripts/preprocess.py --dataset iris_v1
+  metrics:
+    - metrics/iteration1_metrics.json
 
-    deps:
-      - scripts/preprocess.py
-      - data/raw/iris_v1.csv
+train_iteration_2:
+  cmd: python scripts/train.py --iteration 2
 
-    outs:
-      - data/processed/iris_v1_processed.csv
+  deps:
+    - scripts/train.py
+    - scripts/utils.py
+    - params.yaml
+    - data/processed/iris_merged.csv
 
-  merge:
-    cmd: python scripts/preprocess.py --merge
+  outs:
+    - models/model_iteration_2.pkl
 
-    deps:
-      - data/processed/iris_v0_processed.csv
-      - data/processed/iris_v1_processed.csv
-      - scripts/preprocess.py
-
-    outs:
-      - data/processed/iris_merged.csv
-
-  train_iteration_1:
-    cmd: python scripts/train.py --iteration 1
-
-    deps:
-      - scripts/train.py
-
-      - data/processed/iris_v0_processed.csv
-
-    outs:
-      - models/model_iteration_1.pkl
-
-    metrics:
-      - metrics/iteration1_metrics.json
-
-  train_iteration_2:
-    cmd: python scripts/train.py --iteration 2
-
-    deps:
-      - scripts/train.py
-
-      - data/processed/iris_merged.csv
-
-    outs:
-      - models/model_iteration_2.pkl
-
-    metrics:
-      - metrics/iteration2_metrics.json
+  metrics:
+    - metrics/iteration2_metrics.json
