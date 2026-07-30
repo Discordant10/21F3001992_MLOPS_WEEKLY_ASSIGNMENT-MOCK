@@ -91,3 +91,55 @@ stages:
       hash: md5
       md5: 00becbe44ffca791532272595cab4b28
       size: 4023
+  preprocess_v0:
+    cmd: python scripts/preprocess.py --dataset iris_v0
+    deps:
+    - path: data/raw/iris_v0.csv
+      hash: md5
+      md5: 9c22f7cf3714d0c194f5f43a6276ca9d
+      size: 3861
+    - path: scripts/preprocess.py
+      hash: md5
+      md5: 7f5bc3913ffe7a68104cc04bcaf02578
+      size: 3566
+    outs:
+    - path: data/processed/iris_v0_processed.csv
+      hash: md5
+      md5: a1fe288463b9d1990e915f0a9e689d89
+      size: 4316
+  preprocess_v1:
+    cmd: python scripts/preprocess.py --dataset iris_v1
+    deps:
+    - path: data/raw/iris_v1.csv
+      hash: md5
+      md5: 4954d4088152604322732f13c4e14691
+      size: 2606
+    - path: scripts/preprocess.py
+      hash: md5
+      md5: 7f5bc3913ffe7a68104cc04bcaf02578
+      size: 3566
+    outs:
+    - path: data/processed/iris_v1_processed.csv
+      hash: md5
+      md5: 77363f95b21ab3740253bc55d90d4d61
+      size: 2917
+  merge:
+    cmd: python scripts/preprocess.py --merge
+    deps:
+    - path: data/processed/iris_v0_processed.csv
+      hash: md5
+      md5: a1fe288463b9d1990e915f0a9e689d89
+      size: 4316
+    - path: data/processed/iris_v1_processed.csv
+      hash: md5
+      md5: 77363f95b21ab3740253bc55d90d4d61
+      size: 2917
+    - path: scripts/preprocess.py
+      hash: md5
+      md5: 7f5bc3913ffe7a68104cc04bcaf02578
+      size: 3566
+    outs:
+    - path: data/processed/iris_merged.csv
+      hash: md5
+      md5: df8645bb1205b5780559086afa0563d0
+      size: 7167
