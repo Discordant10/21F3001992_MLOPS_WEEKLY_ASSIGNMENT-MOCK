@@ -36,7 +36,7 @@ model:
       - entropy
 
 mlflow:
-  tracking_uri: http://localhost:5000
+  tracking_uri: http://35.196.169.169:5000/
 
   experiment_name: IITM_OPPE_IRIS
 

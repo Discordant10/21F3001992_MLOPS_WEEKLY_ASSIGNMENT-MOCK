@@ -100,8 +100,8 @@ stages:
       size: 3861
     - path: scripts/preprocess.py
       hash: md5
-      md5: 7f5bc3913ffe7a68104cc04bcaf02578
-      size: 3566
+      md5: 918f6c513a378bb5c0809934c50af28d
+      size: 2475
     outs:
     - path: data/processed/iris_v0_processed.csv
       hash: md5
@@ -116,8 +116,8 @@ stages:
       size: 2606
     - path: scripts/preprocess.py
       hash: md5
-      md5: 7f5bc3913ffe7a68104cc04bcaf02578
-      size: 3566
+      md5: 918f6c513a378bb5c0809934c50af28d
+      size: 2475
     outs:
     - path: data/processed/iris_v1_processed.csv
       hash: md5
@@ -143,3 +143,51 @@ stages:
       hash: md5
       md5: df8645bb1205b5780559086afa0563d0
       size: 7167
+  train_iteration_1:
+    cmd: python scripts/train.py --iteration 1
+    deps:
+    - path: data/processed/iris_v0_processed.csv
+      hash: md5
+      md5: a1fe288463b9d1990e915f0a9e689d89
+      size: 4316
+    - path: params.yaml
+      hash: md5
+      md5: 886257386f648b9749bc998cf12a6831
+      size: 610
+    - path: scripts/train.py
+      hash: md5
+      md5: 13a624e80d5f131dc7ac32c091776564
+      size: 7461
+    outs:
+    - path: metrics/metrics_iteration_1.json
+      hash: md5
+      md5: b041f6b4151df67c6fea03e9664994fb
+      size: 1360
+    - path: models/model_iteration_1.pkl
+      hash: md5
+      md5: adf66c3c01e2ea94538b286728e6e262
+      size: 62449
+  train_iteration_2:
+    cmd: python scripts/train.py --iteration 2
+    deps:
+    - path: data/processed/iris_v1_processed.csv
+      hash: md5
+      md5: 77363f95b21ab3740253bc55d90d4d61
+      size: 2917
+    - path: params.yaml
+      hash: md5
+      md5: 886257386f648b9749bc998cf12a6831
+      size: 610
+    - path: scripts/train.py
+      hash: md5
+      md5: 13a624e80d5f131dc7ac32c091776564
+      size: 7461
+    outs:
+    - path: metrics/metrics_iteration_2.json
+      hash: md5
+      md5: 50731ddb420e6151383193a2bc2e92d8
+      size: 1357
+    - path: models/model_iteration_2.pkl
+      hash: md5
+      md5: fddfcab7c87c63cf0cef0fc6215bf896
+      size: 114001
