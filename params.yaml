@@ -1,26 +1,35 @@
 dataset:
-  version: iris_v0
+  raw:
+    iteration1: data/raw/iris_v0.csv
 
-training:
+    iteration2: data/raw/iris_v1.csv
+
+  processed:
+    iteration1: data/processed/iris_v0_processed.csv
+
+    iteration2: data/processed/iris_v1_processed.csv
+
+model:
   random_state: 42
 
-  test_size: 0.20
+  test_size: 0.2
 
-  hyperparameter_search:
+  cv: 5
+
+  parameters:
     n_estimators:
       - 50
       - 100
-      - 150
+      - 200
 
     max_depth:
       - 3
       - 5
-      - 7
       - 10
 
     min_samples_split:
       - 2
-      - 5
+      - 4
 
     criterion:
       - gini
@@ -29,17 +38,9 @@ training:
 mlflow:
   tracking_uri: http://localhost:5000
 
-  experiment_name: OPPE_Iris_Classifier
-
-  registered_model_name: IrisClassifier
+  experiment_name: IITM_OPPE_IRIS
 
 paths:
-  raw_data: data/
+  model_dir: models
 
-  processed_data: data/processed/
-
-  model: models/model.pkl
-
-  metrics: metrics/
-
-  reports: reports/
+  metrics_dir: metrics

@@ -1,27 +1,36 @@
-import yaml
-import mlflow.pyfunc
+import mlflow
+import mlflow.sklearn
 
-# MLflow settings are stored in params.yaml
 
-PARAMS_PATH = "params.yaml"
+def setup_mlflow(config):
 
-def load_params():
-    with open(PARAMS_PATH, "r") as f:
-        return yaml.safe_load(f)
+    mlflow.set_tracking_uri(config["mlflow"]["tracking_uri"])
 
-def load_registered_model():
-    params = load_params()
+    mlflow.set_experiment(config["mlflow"]["experiment_name"])
 
-    tracking_uri = params["mlflow"]["tracking_uri"]
-    model_name = params["mlflow"]["registered_model_name"]
 
-    mlflow.set_tracking_uri(tracking_uri)
+def log_run(
+    model,
+    params,
+    metrics,
+    iteration,
+):
+    """
+    Log one training run.
+    """
 
-    # Load latest registered model
-    model_uri = f"models:/{model_name}/latest"
-    print(
-        f"Loading model from MLflow: "
-        f"{model_uri}"
-    )
-    return mlflow.pyfunc.load_model(model_uri)
+    with mlflow.start_run(nested=True, run_name=f"Iteration_{iteration}"):
 
+        mlflow.log_params(params)
+
+        for k, v in metrics.items():
+
+            if isinstance(v, (int, float)):
+
+                mlflow.log_metric(k, v)
+
+        mlflow.sklearn.log_model(
+            model,
+            artifact_path="model",
+            registered_model_name="IrisClassifier",
+        )

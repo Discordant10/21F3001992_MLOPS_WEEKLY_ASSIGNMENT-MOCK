@@ -1,38 +1,30 @@
 # Python
 __pycache__/
-*.py[cod]
-*.so
-*.egg-info/
+*.pyc
+*.pyo
+*.pyd
+
 .venv/
 venv/
-env/
 
-# IDE
-.vscode/
-.idea/
+# DVC
+/cache/
 
-# Jupyter
-.ipynb_checkpoints/
-
-# Logs
-*.log
+# MLflow
+mlruns/
 
 # Models
 models/*.pkl
-models/*.joblib
 
 # Metrics
 metrics/*.json
-metrics/*.csv
 
 # Reports
 reports/
 
-# MLflow local database
-mlruns/
-
-# DVC cache
-.dvc/cache
+# IDE
+.vscode/
+.idea/
 
 # OS
 .DS_Store
