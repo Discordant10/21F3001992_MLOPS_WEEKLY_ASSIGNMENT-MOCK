@@ -12,7 +12,6 @@ import argparse
 from pathlib import Path
 
 import pandas as pd
-from utils.data_utils import get_iteration_dataset, save_csv
 
 TARGET_MAPPING = {
     "setosa": 0,
