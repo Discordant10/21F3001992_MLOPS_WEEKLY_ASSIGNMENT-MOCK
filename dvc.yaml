@@ -1,47 +1,59 @@
 stages:
+  preprocess_v0:
+    cmd: python scripts/preprocess.py --dataset iris_v0
 
-  feast_apply:
-    cmd: feast apply
-    wdir: feature_repo
     deps:
-      - feature_store.yaml
-      - features.py
+      - scripts/preprocess.py
+      - data/raw/iris_v0.csv
 
-  feast_materialize:
-    cmd: feast materialize 2025-09-01T00:00:00 2100-01-01T00:00:00
-    wdir: feature_repo
-    deps:
-      - feature_store.yaml
-      - features.py
-      - ../data/iris_data_adapted_for_feast.parquet
+    outs:
+      - data/processed/iris_v0_processed.csv
 
-  train:
-    cmd: python train.py
+  preprocess_v1:
+    cmd: python scripts/preprocess.py --dataset iris_v1
+
     deps:
-      - train.py
-      - feature_repo/features.py
-      - data/iris_data_adapted_for_feast.csv
-    params:
-      - model.n_estimators
-      - model.max_depth
-      - mlflow.tracking_uri
-      - mlflow.experiment_name
-      - mlflow.registered_model_name
+      - scripts/preprocess.py
+      - data/raw/iris_v1.csv
+
+    outs:
+      - data/processed/iris_v1_processed.csv
+
+  merge:
+    cmd: python scripts/preprocess.py --merge
+
+    deps:
+      - data/processed/iris_v0_processed.csv
+      - data/processed/iris_v1_processed.csv
+      - scripts/preprocess.py
+
+    outs:
+      - data/processed/iris_merged.csv
+
+  train_iteration_1:
+    cmd: python scripts/train.py --iteration 1
+
+    deps:
+      - scripts/train.py
+
+      - data/processed/iris_v0_processed.csv
+
+    outs:
+      - models/model_iteration_1.pkl
+
     metrics:
-      - metrics/train_metrics.json
+      - metrics/iteration1_metrics.json
 
-  inference:
-    cmd: python inference.py
-    deps:
-      - inference.py
-      - mlflow_utils.py
-      - data/iris_data_adapted_for_feast.csv
+  train_iteration_2:
+    cmd: python scripts/train.py --iteration 2
 
-  test:
-    cmd: pytest tests -v --tb=short
     deps:
-      - tests/test_data_validation.py
-      - tests/test_model.py
-      - mlflow_utils.py
-      - metrics/train_metrics.json
-      - data/iris_data_adapted_for_feast.csv
+      - scripts/train.py
+
+      - data/processed/iris_merged.csv
+
+    outs:
+      - models/model_iteration_2.pkl
+
+    metrics:
+      - metrics/iteration2_metrics.json
