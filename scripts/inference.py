@@ -1,68 +1,128 @@
+"""
+Inference script for IITM OPPE MLOps Project.
+
+Usage:
+
+Single sample:
+python scripts/inference.py --model models/model_iteration_2.pkl \
+    --sample 5.1 3.5 1.4 0.2
+
+Batch prediction:
+python scripts/inference.py --model models/model_iteration_2.pkl \
+    --input data/processed/iris_v1_processed.csv
+"""
+
 import argparse
 from pathlib import Path
 
+import joblib
 import pandas as pd
-from feast import FeatureStore
 
-from mlflow_utils import load_registered_model
+FEATURE_COLUMNS = [
+    "sepal_length",
+    "sepal_width",
+    "petal_length",
+    "petal_width",
+]
+
+CLASS_MAPPING = {
+    0: "setosa",
+    1: "versicolor",
+    2: "virginica",
+}
+
+
+def load_model(model_path: str):
+    """
+    Load trained model.
+    """
+    return joblib.load(model_path)
+
+
+def predict_single(model, values):
+    """
+    Predict one flower.
+    """
+    df = pd.DataFrame([values], columns=FEATURE_COLUMNS)
+
+    prediction = model.predict(df)[0]
+
+    print("\nPrediction")
+    print("-------------------------")
+    print(f"Class ID : {prediction}")
+    print(f"Species  : {CLASS_MAPPING[prediction]}")
+
+
+def predict_batch(model, input_csv):
+    """
+    Predict an entire CSV.
+    """
+    df = pd.read_csv(input_csv)
+
+    predictions = model.predict(df[FEATURE_COLUMNS])
+
+    output = df.copy()
+
+    output["prediction"] = predictions
+
+    output["predicted_species"] = [CLASS_MAPPING[p] for p in predictions]
+
+    output_path = Path("reports")
+
+    output_path.mkdir(exist_ok=True)
+
+    output_file = output_path / "predictions.csv"
+
+    output.to_csv(
+        output_file,
+        index=False,
+    )
+
+    print(f"\nPredictions saved to\n{output_file}")
 
 
 def main():
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--id",
-        type=int,
-        default=1,
+        "--model",
+        required=True,
+    )
+
+    parser.add_argument(
+        "--input",
+        default=None,
+    )
+
+    parser.add_argument(
+        "--sample",
+        nargs=4,
+        type=float,
+        default=None,
     )
 
     args = parser.parse_args()
-    iris_id = args.id
 
-    # Load latest model from MLflow Registry
-    model = load_registered_model()
+    model = load_model(args.model)
 
-    print("Model loaded")
+    if args.sample is not None:
 
-    # Connect to Feast feature store
-    project_root = Path(__file__).resolve().parent
+        predict_single(
+            model,
+            args.sample,
+        )
 
-    feature_repo = project_root / "feature_repo"
+    elif args.input is not None:
 
-    store = FeatureStore(repo_path=str(feature_repo))
+        predict_batch(
+            model,
+            args.input,
+        )
 
-    # Fetch online features
-    features = store.get_online_features(
-        features=[
-            "iris_features:sepal_length",
-            "iris_features:sepal_width",
-            "iris_features:petal_length",
-            "iris_features:petal_width",
-        ],
-        entity_rows=[{"iris_id": iris_id}],
-    ).to_dict()
+    else:
 
-    if features["sepal_length"][0] is None:
-        raise ValueError(f"No features found for " f"iris_id={iris_id}")
-
-    print()
-    print("Retrieved Features:")
-    print(features)
-
-    X = pd.DataFrame(
-        {
-            "sepal_length": [features["sepal_length"][0]],
-            "sepal_width": [features["sepal_width"][0]],
-            "petal_length": [features["petal_length"][0]],
-            "petal_width": [features["petal_width"][0]],
-        }
-    )
-
-    prediction = model.predict(X)
-
-    print()
-    print("Prediction:")
-    print(prediction[0])
+        raise ValueError("Provide either --sample or --input")
 
 
 if __name__ == "__main__":

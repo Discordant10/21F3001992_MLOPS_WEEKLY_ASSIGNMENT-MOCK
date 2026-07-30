@@ -1,146 +1,116 @@
+"""
+Preprocess Iris dataset.
+
+Features:
+1. Loads raw dataset.
+2. Encodes species labels.
+3. Handles missing values.
+4. Saves processed dataset.
+"""
+
 import argparse
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
+from utils.data_utils import get_iteration_dataset, save_csv
 
-RAW_DIR = Path("data/raw")
-PROCESSED_DIR = Path("data/processed")
+TARGET_MAPPING = {
+    "setosa": 0,
+    "versicolor": 1,
+    "virginica": 2,
+}
 
-PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
-FEATURE_COLUMNS = [
+FEATURES = [
     "sepal_length",
     "sepal_width",
     "petal_length",
     "petal_width",
 ]
 
-TARGET_MAPPING = {
-    "setosa": 0,
-    "versicolor": 1,
-    "virginica": 2,
-    "Iris-setosa": 0,
-    "Iris-versicolor": 1,
-    "Iris-virginica": 2,
-}
 
-
-def validate_columns(df: pd.DataFrame):
+def clean_species(series: pd.Series) -> pd.Series:
     """
-    Ensure all required columns are present.
+    Normalise species names.
+
+    Accepts:
+    Iris-setosa
+    setosa
+    SETOSA
     """
 
-    required = FEATURE_COLUMNS + ["species"]
-
-    missing = set(required) - set(df.columns)
-
-    if missing:
-        raise ValueError(f"Missing columns: {missing}")
+    return (
+        series.astype(str).str.lower().str.replace("iris-", "", regex=False).str.strip()
+    )
 
 
-def encode_target(df: pd.DataFrame):
+def fill_missing_values(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Encode species labels.
-    """
+    Fill missing feature values using the
+    previous 10 samples of the same class.
 
-    df["target"] = df["species"].map(TARGET_MAPPING)
-
-    if df["target"].isna().any():
-        raise ValueError("Unknown species found.")
-
-    return df
-
-
-def impute_last10_species_mean(df: pd.DataFrame):
-    """
-    Impute missing values using the mean of
-    the last 10 available samples belonging
-    to the same species.
+    If fewer than 10 exist,
+    use all previous samples.
     """
 
     df = df.copy()
 
-    for species in df["species"].unique():
+    for idx in range(len(df)):
 
-        species_idx = df[df["species"] == species].index
+        species = df.loc[idx, "species"]
 
-        for feature in FEATURE_COLUMNS:
+        previous = df.iloc[:idx]
 
-            for idx in species_idx:
+        previous = previous[previous["species"] == species]
 
-                if pd.isna(df.loc[idx, feature]):
+        previous = previous.tail(10)
 
-                    previous = df.loc[
-                        species_idx[species_idx < idx],
-                        feature,
-                    ].dropna()
+        for feature in FEATURES:
 
-                    if len(previous) == 0:
+            if pd.isna(df.loc[idx, feature]):
 
-                        fallback = (
-                            df.loc[
-                                species_idx,
-                                feature,
-                            ]
-                            .dropna()
-                            .mean()
-                        )
+                if len(previous):
 
-                        df.loc[idx, feature] = fallback
+                    value = previous[feature].mean()
 
-                    else:
+                else:
 
-                        last10 = previous.tail(10)
+                    value = df[feature].mean()
 
-                        df.loc[idx, feature] = last10.mean()
+                df.loc[idx, feature] = value
 
     return df
 
 
-def save_processed(df, name):
+def preprocess(dataset_name: str):
 
-    output = PROCESSED_DIR / f"{name}_processed.csv"
+    raw_path = Path("data/raw") / f"{dataset_name}.csv"
 
-    df.to_csv(output, index=False)
+    output_path = Path("data/processed") / f"{dataset_name}_processed.csv"
 
-    print(f"Saved {output}")
+    print(f"Loading {raw_path}")
 
+    df = pd.read_csv(raw_path)
 
-def preprocess_dataset(dataset_name):
+    df["species"] = clean_species(df["species"])
 
-    input_file = RAW_DIR / f"{dataset_name}.csv"
+    unknown = set(df["species"]) - set(TARGET_MAPPING.keys())
 
-    print(f"Loading {input_file}")
+    if unknown:
+        raise ValueError(f"Unknown species detected: {unknown}")
 
-    df = pd.read_csv(input_file)
+    df = fill_missing_values(df)
 
-    validate_columns(df)
+    df["target"] = df["species"].map(TARGET_MAPPING)
 
-    df = encode_target(df)
-
-    df = impute_last10_species_mean(df)
-
-    save_processed(df, dataset_name)
-
-
-def merge_datasets():
-
-    v0 = pd.read_csv(PROCESSED_DIR / "iris_v0_processed.csv")
-
-    v1 = pd.read_csv(PROCESSED_DIR / "iris_v1_processed.csv")
-
-    merged = pd.concat(
-        [v0, v1],
-        ignore_index=True,
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
     )
 
-    merged.to_csv(
-        PROCESSED_DIR / "iris_merged.csv",
-        index=False,
-    )
+    df.to_csv(output_path, index=False)
 
-    print("Merged dataset saved.")
+    print(f"Saved {output_path}")
 
 
 def main():
@@ -149,30 +119,14 @@ def main():
 
     parser.add_argument(
         "--dataset",
-        type=str,
-        help="iris_v0 or iris_v1",
-    )
-
-    parser.add_argument(
-        "--merge",
-        action="store_true",
+        required=True,
+        choices=["iris_v0", "iris_v1"],
     )
 
     args = parser.parse_args()
 
-    if args.dataset:
-
-        preprocess_dataset(args.dataset)
-
-    elif args.merge:
-
-        merge_datasets()
-
-    else:
-
-        raise ValueError("Specify --dataset or --merge")
+    preprocess(args.dataset)
 
 
 if __name__ == "__main__":
-
     main()

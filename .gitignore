@@ -2,13 +2,19 @@
 __pycache__/
 *.pyc
 *.pyo
-*.pyd
+*.egg-info/
 
+# Virtual Environments
 .venv/
 venv/
+env/
+
+# IDE
+.vscode/
+.idea/
 
 # DVC
-/cache/
+.dvc/cache/
 
 # MLflow
 mlruns/
@@ -20,11 +26,7 @@ models/*.pkl
 metrics/*.json
 
 # Reports
-reports/
-
-# IDE
-.vscode/
-.idea/
+reports/*.csv
 
 # OS
 .DS_Store

@@ -1,6 +1,19 @@
+"""
+Train RandomForest model for IITM OPPE MLOps project.
+
+Features
+--------
+1. Reads configuration from params.yaml
+2. Loads processed dataset
+3. Splits train/test
+4. Performs GridSearchCV
+5. Evaluates best model
+6. Saves model
+7. Logs to MLflow
+8. Saves metrics.json
+"""
+
 import argparse
-import json
-from itertools import product
 from pathlib import Path
 
 import joblib
@@ -17,35 +30,40 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GridSearchCV, train_test_split
 
-# --------------------------------------------------------
+################################################################################
 # Configuration
-# --------------------------------------------------------
-
-CONFIG = yaml.safe_load(open("params.yaml"))
-
-DATA_DIR = Path("data/processed")
-
-MODEL_DIR = Path("models")
-MODEL_DIR.mkdir(exist_ok=True)
-
-METRIC_DIR = Path("metrics")
-METRIC_DIR.mkdir(exist_ok=True)
+################################################################################
 
 
-# --------------------------------------------------------
+def load_config(config_path: str = "params.yaml") -> dict:
+    """
+    Load YAML configuration.
+    """
+    with open(config_path, "r") as f:
+        return yaml.safe_load(f)
+
+
+CONFIG = load_config()
+
+MODEL_DIR = Path(CONFIG["paths"]["model_dir"])
+METRICS_DIR = Path(CONFIG["paths"]["metrics_dir"])
+
+MODEL_DIR.mkdir(parents=True, exist_ok=True)
+METRICS_DIR.mkdir(parents=True, exist_ok=True)
+
+################################################################################
 # MLflow
-# --------------------------------------------------------
+################################################################################
 
 mlflow.set_tracking_uri(CONFIG["mlflow"]["tracking_uri"])
 
 mlflow.set_experiment(CONFIG["mlflow"]["experiment_name"])
 
-
-# --------------------------------------------------------
-# Dataset helpers
-# --------------------------------------------------------
+################################################################################
+# Dataset
+################################################################################
 
 FEATURE_COLUMNS = [
     "sepal_length",
@@ -54,366 +72,271 @@ FEATURE_COLUMNS = [
     "petal_width",
 ]
 
-
 TARGET_COLUMN = "target"
 
 
-def load_iteration_dataset(iteration):
+def get_dataset(iteration: int) -> Path:
+    """
+    Return processed dataset path.
+    """
 
     if iteration == 1:
-        return DATA_DIR / "iris_v0_processed.csv"
+        return Path(CONFIG["dataset"]["processed"]["iteration1"])
 
     if iteration == 2:
-        return DATA_DIR / "iris_merged.csv"
+        return Path(CONFIG["dataset"]["processed"]["iteration2"])
 
-    raise ValueError("Iteration must be 1 or 2")
-
-
-def load_dataset(path):
-
-    if not path.exists():
-        raise FileNotFoundError(path)
-
-    return pd.read_csv(path)
+    raise ValueError("Iteration must be 1 or 2.")
 
 
-def split_features_target(df):
-
-    X = df[FEATURE_COLUMNS]
-
-    y = df[TARGET_COLUMN]
-
-    return X, y
-
-
-# --------------------------------------------------------
+################################################################################
 # Metrics
-# --------------------------------------------------------
+################################################################################
 
 
-def calculate_metrics(
-    y_true,
-    y_pred,
-):
+def compute_metrics(y_true, y_pred) -> dict:
+    """
+    Compute evaluation metrics.
+    """
 
     return {
-        "accuracy": accuracy_score(
+        "accuracy": float(
+            accuracy_score(
+                y_true,
+                y_pred,
+            )
+        ),
+        "precision": float(
+            precision_score(
+                y_true,
+                y_pred,
+                average="weighted",
+                zero_division=0,
+            )
+        ),
+        "recall": float(
+            recall_score(
+                y_true,
+                y_pred,
+                average="weighted",
+                zero_division=0,
+            )
+        ),
+        "f1_score": float(
+            f1_score(
+                y_true,
+                y_pred,
+                average="weighted",
+                zero_division=0,
+            )
+        ),
+        "confusion_matrix": confusion_matrix(
             y_true,
             y_pred,
-        ),
-        "precision": precision_score(
-            y_true,
-            y_pred,
-            average="weighted",
-            zero_division=0,
-        ),
-        "recall": recall_score(
-            y_true,
-            y_pred,
-            average="weighted",
-            zero_division=0,
-        ),
-        "f1_score": f1_score(
-            y_true,
-            y_pred,
-            average="weighted",
-            zero_division=0,
-        ),
+        ).tolist(),
         "classification_report": classification_report(
             y_true,
             y_pred,
             output_dict=True,
             zero_division=0,
         ),
-        "confusion_matrix": confusion_matrix(
-            y_true,
-            y_pred,
-        ).tolist(),
     }
 
 
-# --------------------------------------------------------
-# Save helpers
-# --------------------------------------------------------
+################################################################################
+# Training
+################################################################################
 
 
-def save_model(
-    model,
-    path,
-):
+def train(iteration: int):
+    """
+    Train model for one iteration.
+    """
 
-    joblib.dump(
-        model,
-        path,
-    )
+    dataset = get_dataset(iteration)
 
+    print(f"\nLoading dataset: {dataset}")
 
-def save_metrics(
-    metrics,
-    path,
-):
+    df = pd.read_csv(dataset)
 
-    with open(path, "w") as f:
+    X = df[FEATURE_COLUMNS]
+    y = df[TARGET_COLUMN]
 
-        json.dump(
-            metrics,
-            f,
-            indent=4,
-        )
-
-
-# --------------------------------------------------------
-# Hyperparameter Search
-# --------------------------------------------------------
-
-
-def parameter_grid():
-
-    hp = CONFIG["training"]["hyperparameter_search"]
-
-    return product(
-        hp["n_estimators"],
-        hp["max_depth"],
-        hp["min_samples_split"],
-        hp["criterion"],
-    )
-
-
-# --------------------------------------------------------
-# Model Training
-# --------------------------------------------------------
-
-
-def train_model(
-    dataset_path,
-    iteration,
-):
-
-    df = load_dataset(
-        dataset_path,
-    )
-
-    X, y = split_features_target(df)
-
-    X_train, X_val, y_train, y_val = train_test_split(
+    X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
-        test_size=CONFIG["training"]["test_size"],
-        random_state=CONFIG["training"]["random_state"],
+        test_size=CONFIG["model"]["test_size"],
+        random_state=CONFIG["model"]["random_state"],
         stratify=y,
     )
 
-    best_model = None
+    param_grid = CONFIG["model"]["parameters"]
 
-    best_metrics = None
+    estimator = RandomForestClassifier(random_state=CONFIG["model"]["random_state"])
 
-    best_params = None
+    grid = GridSearchCV(
+        estimator=estimator,
+        param_grid=param_grid,
+        cv=CONFIG["model"]["cv"],
+        scoring="accuracy",
+        n_jobs=-1,
+        refit=True,
+        verbose=1,
+    )
 
-    best_accuracy = -1
+    print("\nRunning GridSearchCV...")
 
-    # ----------------------------------------------------
-    # Hyperparameter Search
-    # ----------------------------------------------------
+    grid.fit(
+        X_train,
+        y_train,
+    )
 
-    for (
-        n_estimators,
-        max_depth,
-        min_samples_split,
-        criterion,
-    ) in parameter_grid():
+    best_model = grid.best_estimator_
 
-        params = {
-            "iteration": iteration,
-            "n_estimators": n_estimators,
-            "max_depth": max_depth,
-            "min_samples_split": min_samples_split,
-            "criterion": criterion,
-        }
+    predictions = best_model.predict(X_test)
 
-        with mlflow.start_run(
-            nested=True,
-            run_name=f"iter_{iteration}_{n_estimators}_{max_depth}",
-        ):
+    metrics = compute_metrics(
+        y_test,
+        predictions,
+    )
 
-            model = RandomForestClassifier(
-                n_estimators=n_estimators,
-                max_depth=max_depth,
-                min_samples_split=min_samples_split,
-                criterion=criterion,
-                random_state=CONFIG["training"]["random_state"],
-            )
+    model_path = MODEL_DIR / f"model_iteration_{iteration}.pkl"
 
-            model.fit(
-                X_train,
-                y_train,
-            )
-
-            predictions = model.predict(
-                X_val,
-            )
-
-            metrics = calculate_metrics(
-                y_val,
-                predictions,
-            )
-
-            mlflow.log_params(params)
-
-            mlflow.log_metrics(
-                {
-                    "accuracy": metrics["accuracy"],
-                    "precision": metrics["precision"],
-                    "recall": metrics["recall"],
-                    "f1_score": metrics["f1_score"],
-                }
-            )
-
-            mlflow.sklearn.log_model(
-                sk_model=model,
-                artifact_path="model",
-            )
-
-            if metrics["accuracy"] > best_accuracy:
-
-                best_accuracy = metrics["accuracy"]
-
-                best_model = model
-
-                best_metrics = metrics
-
-                best_params = params
+    metrics_path = METRICS_DIR / f"metrics_iteration_{iteration}.json"
 
     return (
         best_model,
-        best_metrics,
-        best_params,
+        model_path,
+        metrics,
+        metrics_path,
+        grid.best_params_,
+        grid.best_score_,
     )
 
 
-# --------------------------------------------------------
+################################################################################
 # Main
-# --------------------------------------------------------
+################################################################################
 
 
 def main():
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Train RandomForest model.")
 
     parser.add_argument(
         "--iteration",
-        required=True,
         type=int,
+        required=True,
+        choices=[1, 2],
+        help="Training iteration number.",
     )
 
     args = parser.parse_args()
 
-    dataset = load_iteration_dataset(
-        args.iteration,
-    )
+    iteration = args.iteration
 
-    print()
+    print("=" * 70)
+    print(f"TRAINING ITERATION {iteration}")
+    print("=" * 70)
 
-    print(f"Training using {dataset}")
+    (
+        model,
+        model_path,
+        metrics,
+        metrics_path,
+        best_params,
+        cv_score,
+    ) = train(iteration)
 
-    print()
+    #
+    # Save model
+    #
+    joblib.dump(model, model_path)
 
-    with mlflow.start_run(
-        run_name=f"Training_Iteration_{args.iteration}",
-    ):
+    #
+    # Save metrics
+    #
+    import json
 
-        model, metrics, params = train_model(
-            dataset,
-            args.iteration,
+    with open(metrics_path, "w") as f:
+        json.dump(metrics, f, indent=4)
+
+    #
+    # MLflow logging
+    #
+    with mlflow.start_run(run_name=f"training_iteration_{iteration}"):
+
+        #
+        # Best hyperparameters
+        #
+        mlflow.log_params(best_params)
+
+        #
+        # Cross validation score
+        #
+        mlflow.log_metric(
+            "cv_accuracy",
+            float(cv_score),
         )
 
-        mlflow.log_params(
-            {
-                "best_n_estimators": params["n_estimators"],
-                "best_max_depth": params["max_depth"],
-                "best_min_samples_split": params["min_samples_split"],
-                "best_criterion": params["criterion"],
-            }
+        #
+        # Test metrics
+        #
+        mlflow.log_metric(
+            "accuracy",
+            metrics["accuracy"],
         )
 
-        mlflow.log_metrics(
-            {
-                "best_accuracy": metrics["accuracy"],
-                "best_precision": metrics["precision"],
-                "best_recall": metrics["recall"],
-                "best_f1": metrics["f1_score"],
-            }
+        mlflow.log_metric(
+            "precision",
+            metrics["precision"],
         )
 
-        model_path = MODEL_DIR / f"model_iteration_{args.iteration}.pkl"
-
-        metric_path = METRIC_DIR / f"iteration{args.iteration}_metrics.json"
-
-        save_model(
-            model,
-            model_path,
+        mlflow.log_metric(
+            "recall",
+            metrics["recall"],
         )
 
-        save_metrics(
-            metrics,
-            metric_path,
+        mlflow.log_metric(
+            "f1_score",
+            metrics["f1_score"],
         )
 
-        mlflow.log_artifact(
-            model_path,
-        )
+        #
+        # Artifacts
+        #
+        mlflow.log_artifact(str(model_path))
+        mlflow.log_artifact(str(metrics_path))
 
-        mlflow.log_artifact(
-            metric_path,
-        )
+    #
+    # Console summary
+    #
+    print("\n")
+    print("=" * 70)
+    print("Training Complete")
+    print("=" * 70)
 
-        print()
+    print("\nBest Parameters")
 
-        print("=" * 60)
+    for key, value in best_params.items():
+        print(f"{key:20} : {value}")
 
-        print("TRAINING COMPLETE")
+    print(f"\nCross Validation Accuracy : {cv_score:.4f}")
 
-        print("=" * 60)
+    print("\nTest Metrics")
 
-        print()
+    print(f"Accuracy  : {metrics['accuracy']:.4f}")
+    print(f"Precision : {metrics['precision']:.4f}")
+    print(f"Recall    : {metrics['recall']:.4f}")
+    print(f"F1 Score  : {metrics['f1_score']:.4f}")
 
-        print(f"Iteration : {args.iteration}")
+    print("\nArtifacts")
 
-        print()
+    print(f"Model   : {model_path}")
+    print(f"Metrics : {metrics_path}")
 
-        print("Best Parameters")
-
-        print("----------------")
-
-        for k, v in params.items():
-
-            if k != "iteration":
-
-                print(f"{k:20}: {v}")
-
-        print()
-
-        print("Metrics")
-
-        print("-------")
-
-        print(
-            json.dumps(
-                metrics,
-                indent=4,
-            )
-        )
-
-        print()
-
-        print(f"Model saved to : {model_path}")
-
-        print(f"Metrics saved : {metric_path}")
-
-        print()
-
-        print("=" * 60)
+    print("=" * 70)
 
 
 if __name__ == "__main__":
-
     main()
