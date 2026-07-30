@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# Models
+models/*.pkl
+models/*.joblib
+
+# Metrics
+metrics/*.json
+metrics/*.csv
+
+# Reports
+reports/
+
+# MLflow local database
+mlruns/
+
+# DVC cache
+.dvc/cache
+
+# OS
+.DS_Store
+Thumbs.db

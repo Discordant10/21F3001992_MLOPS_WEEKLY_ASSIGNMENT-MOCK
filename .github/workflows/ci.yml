@@ -1,0 +1,146 @@
+name: IRIS CI Pipeline
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      ###################################################
+      # Authenticate to Google Cloud
+      ###################################################
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: "${{ secrets.GCP_SA_KEY }}"
+
+      - name: Install Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Verify Authentication
+        run: |
+          gcloud auth list
+
+      ###################################################
+      # Pull DVC data
+      ###################################################
+
+      - name: Pull DVC Artifacts
+        run: |
+          dvc pull -v
+
+      ###################################################
+      # Train model (optional but recommended)
+      ###################################################
+
+      - name: Train Model
+        run: |
+          python train.py
+
+      ###################################################
+      # Run Tests
+      ###################################################
+
+      - name: Execute Pytest
+        run: |
+          pytest tests -v --tb=short | tee pytest_output.txt
+
+      ###################################################
+      # Create Markdown Report
+      ###################################################
+      - name: Install CML
+        uses: iterative/setup-cml@v2
+
+      - name: Generate Test Report
+        run: |
+
+          mkdir -p reports
+
+          echo "# IRIS CI Report" > reports/report.md
+          echo "" >> reports/report.md
+
+          echo "## Test Results" >> reports/report.md
+          echo "" >> reports/report.md
+
+          echo '```' >> reports/report.md
+          cat pytest_output.txt >> reports/report.md
+          echo '```' >> reports/report.md
+
+          echo "" >> reports/report.md
+
+          echo "## Model Metrics" >> reports/report.md
+          echo "" >> reports/report.md
+
+          python - <<EOF
+
+          import json
+
+          with open("metrics/train_metrics.json") as f:
+              metrics=json.load(f)
+
+          with open("reports/report.md","a") as r:
+
+              r.write("| Metric | Value |\\n")
+              r.write("|--------|-------|\\n")
+
+              r.write(f"| Test Accuracy | {metrics['test_accuracy']:.4f} |\n")
+              r.write(f"| Test Precision | {metrics['test_precision']:.4f} |\n")
+              r.write(f"| Test Recall | {metrics['test_recall']:.4f} |\n")
+              r.write(f"| Test F1 Score | {metrics['test_f1_score']:.4f} |\n")
+
+          EOF
+
+      ###################################################
+      # Publish report on GitHub Actions page
+      ###################################################
+
+      - name: Publish Report to GitHub Actions Summary
+        if: always()
+        run: |
+          cat reports/report.md >> $GITHUB_STEP_SUMMARY
+
+      ###################################################
+      # Publish report to PR using CML
+      ###################################################
+
+      - name: Publish CML Report
+        if: github.event_name == 'pull_request'
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cml comment create reports/report.md
+
+      ###################################################
+      # Upload report as artifact
+      ###################################################
+
+      - name: Upload Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-test-report
+          path: reports/report.md

@@ -1,0 +1,47 @@
+stages:
+
+  feast_apply:
+    cmd: feast apply
+    wdir: feature_repo
+    deps:
+      - feature_store.yaml
+      - features.py
+
+  feast_materialize:
+    cmd: feast materialize 2025-09-01T00:00:00 2100-01-01T00:00:00
+    wdir: feature_repo
+    deps:
+      - feature_store.yaml
+      - features.py
+      - ../data/iris_data_adapted_for_feast.parquet
+
+  train:
+    cmd: python train.py
+    deps:
+      - train.py
+      - feature_repo/features.py
+      - data/iris_data_adapted_for_feast.csv
+    params:
+      - model.n_estimators
+      - model.max_depth
+      - mlflow.tracking_uri
+      - mlflow.experiment_name
+      - mlflow.registered_model_name
+    metrics:
+      - metrics/train_metrics.json
+
+  inference:
+    cmd: python inference.py
+    deps:
+      - inference.py
+      - mlflow_utils.py
+      - data/iris_data_adapted_for_feast.csv
+
+  test:
+    cmd: pytest tests -v --tb=short
+    deps:
+      - tests/test_data_validation.py
+      - tests/test_model.py
+      - mlflow_utils.py
+      - metrics/train_metrics.json
+      - data/iris_data_adapted_for_feast.csv

@@ -1,0 +1,93 @@
+schema: '2.0'
+stages:
+  feast_apply:
+    cmd: feast apply
+    deps:
+    - path: feature_store.yaml
+      hash: md5
+      md5: 465a79e9e8a282bbf1ab25bd1ec83a0a
+      size: 203
+    - path: features.py
+      hash: md5
+      md5: a6cb709e26496c3f53e441eb2646a394
+      size: 771
+  feast_materialize:
+    cmd: feast materialize 2025-09-01T00:00:00 2100-01-01T00:00:00
+    deps:
+    - path: ../data/iris_data_adapted_for_feast.parquet
+      hash: md5
+      md5: ae6368333f76277cdf2daad30cef5b59
+      size: 9521
+    - path: feature_store.yaml
+      hash: md5
+      md5: 465a79e9e8a282bbf1ab25bd1ec83a0a
+      size: 203
+    - path: features.py
+      hash: md5
+      md5: a6cb709e26496c3f53e441eb2646a394
+      size: 771
+  train:
+    cmd: python train.py
+    deps:
+    - path: data/iris_data_adapted_for_feast.csv
+      hash: md5
+      md5: 1adb5bd528bf82db0eec2e21f6247410
+      size: 10543
+    - path: feature_repo/features.py
+      hash: md5
+      md5: a6cb709e26496c3f53e441eb2646a394
+      size: 771
+    - path: train.py
+      hash: md5
+      md5: 5ae70400ac1c6c58718674a3bda889eb
+      size: 6648
+    params:
+      params.yaml:
+        mlflow.experiment_name: iris-random-forest
+        mlflow.registered_model_name: IrisClassifier
+        mlflow.tracking_uri: http://34.46.103.193:5000
+        model.max_depth: 3
+        model.n_estimators: 100
+    outs:
+    - path: metrics/train_metrics.json
+      hash: md5
+      md5: b5cb60fbbffdf2f2f1b62a3a04aa2166
+      size: 677
+  inference:
+    cmd: python inference.py
+    deps:
+    - path: data/iris_data_adapted_for_feast.csv
+      hash: md5
+      md5: 1adb5bd528bf82db0eec2e21f6247410
+      size: 10543
+    - path: inference.py
+      hash: md5
+      md5: 49a82d381b9a6cab38d0787bb2afb27a
+      size: 1334
+    - path: mlflow_utils.py
+      hash: md5
+      md5: eedf3a59246002ec3dc49dedf4b64e9d
+      size: 543
+  test:
+    cmd: pytest tests -v --tb=short
+    deps:
+    - path: data/iris_data_adapted_for_feast.csv
+      hash: md5
+      md5: 1adb5bd528bf82db0eec2e21f6247410
+      size: 10543
+    - path: metrics/train_metrics.json
+      hash: md5
+      md5: b5cb60fbbffdf2f2f1b62a3a04aa2166
+      size: 677
+    - path: mlflow_utils.py
+      hash: md5
+      md5: eedf3a59246002ec3dc49dedf4b64e9d
+      size: 543
+    - path: tests/test_data_validation.py
+      hash: md5
+      md5: b5c0b6b6e996ba85ed3e89122700e8c1
+      size: 3290
+    - path: tests/test_model.py
+      hash: md5
+      md5: 00becbe44ffca791532272595cab4b28
+      size: 4023

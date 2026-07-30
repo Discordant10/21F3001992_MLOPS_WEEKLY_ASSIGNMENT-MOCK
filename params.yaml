@@ -1,0 +1,45 @@
+dataset:
+  version: iris_v0
+
+training:
+  random_state: 42
+
+  test_size: 0.20
+
+  hyperparameter_search:
+    n_estimators:
+      - 50
+      - 100
+      - 150
+
+    max_depth:
+      - 3
+      - 5
+      - 7
+      - 10
+
+    min_samples_split:
+      - 2
+      - 5
+
+    criterion:
+      - gini
+      - entropy
+
+mlflow:
+  tracking_uri: http://localhost:5000
+
+  experiment_name: OPPE_Iris_Classifier
+
+  registered_model_name: IrisClassifier
+
+paths:
+  raw_data: data/
+
+  processed_data: data/processed/
+
+  model: models/model.pkl
+
+  metrics: metrics/
+
+  reports: reports/
